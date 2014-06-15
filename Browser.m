@@ -19,7 +19,7 @@
     window.webview = [[WebView alloc] init];
     [window.webview setMaintainsBackForwardList: NO];
     [window setContentView: window.webview];
-    [window.webview setMainFrameURL: @"http://127.0.0.1:8778/tree"];
+    [window.webview setMainFrameURL:url];
     [window.webview setUIDelegate:window];
     [window.webview lockFocus];
 

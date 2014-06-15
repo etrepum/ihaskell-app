@@ -11,9 +11,67 @@
 @end
 
 DirectoryChooser* directoryChooser = NULL;
+NSMutableDictionary* directoryToUrl = NULL;
+NSString* latestDirectory = NULL;
+NSString* ihaskellPath = @"/Users/silver/.cabal/bin/ihaskell";
+
+NSInteger findAvailablePort() {
+	for (unsigned short port = 7777; port < 9000; port++) {
+		NSSocketPort *socket = [[NSSocketPort alloc] initWithTCPPort:port];
+		if (socket) {
+			[socket invalidate];
+			return port;
+		}
+	}
+	return 0;
+}
+
+NSString* runIHaskellAsync() {
+    // Find a port on which we can launch this
+    NSInteger port = findAvailablePort();
+
+    // Environment
+    NSDictionary *env = @{
+        @"IHASKELL_IPYTHON_ARGS" : [NSString stringWithFormat:@"--no-browser --port=%ld", port],
+                         @"HOME" : NSHomeDirectory(),
+                         @"PATH" : @"/usr/local/bin:/bin",
+    };
+
+    NSTask* task = [[NSTask alloc] init];
+    [task setLaunchPath: ihaskellPath];
+    [task setEnvironment: env];
+
+    NSArray *arguments = [NSArray arrayWithObjects:@"notebook", @"-s", directoryChooser.directory, nil];
+    [task setArguments: arguments];
+
+    NSPipe *pipe = [NSPipe pipe];
+    [task setStandardOutput: pipe];
+    [task launch];
+    
+    // Give it a little bit of time to start it
+    [NSThread sleepForTimeInterval: 1.0];
+
+    return [NSString stringWithFormat:@"http://127.0.0.1:%ld/tree", port];
+}
 
 NSString* currentNotebookListURL(){
-    return @"http://127.0.0.1:8778/tree";
+    // First time called
+    if (directoryToUrl == NULL) {
+        directoryToUrl = [@{
+            directoryChooser.directory : runIHaskellAsync(),
+        } mutableCopy];
+        latestDirectory = directoryChooser.directory;
+    } 
+
+    // Directory has changed
+    else if (![latestDirectory isEqualToString:directoryChooser.directory]) {
+        [directoryToUrl setObject:runIHaskellAsync() forKey:directoryChooser.directory];
+        latestDirectory = directoryChooser.directory;
+    }
+
+    NSString* url = [directoryToUrl objectForKey:directoryChooser.directory];
+    NSLog(@"Loading %@", url);
+    return url;
 }
 
 @implementation BrowserManager
